@@ -1,0 +1,25 @@
+build/
+.gradle/
+out/
+
+node_modules/
+src/main/frontend/dist/
+
+# Собирается из фронтенда при сборке WAR
+src/main/webapp/assets/
+src/main/webapp/index.html
+
+# Секреты не коммитим — см. SETUP.md
+.env
+*.local
+
+# Хеши паролей администраторов — не коммитим
+reset_db_with_admins.sql
+
+# Конфиг WildFly с реальными учётными данными — не коммитим
+standalone.xml
+
+# IDE / macOS
+.idea/
+*.iml
+.DS_Store

@@ -1,0 +1,403 @@
+:root {
+  --border: #d0d7de;
+  --bg: #f6f8fa;
+  --accent: #0969da;
+  --danger: #cf222e;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: #1f2328;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+nav button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+nav .spacer {
+  flex: 1;
+}
+
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Общий :hover выше светлый — без этого белый текст синих кнопок пропадает при наведении */
+nav button.active:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  background: #0860c4;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+input,
+select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  max-width: 100%;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+th {
+  background: var(--bg);
+  cursor: pointer;
+  user-select: none;
+}
+
+tbody tr:hover {
+  background: #f9fafb;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.field input,
+.field select {
+  width: 100%;
+}
+
+.field input[type='radio'],
+.field input[type='checkbox'] {
+  width: auto;
+  margin: 0 6px 0 0;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.banner {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: #ffebe9;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.notice {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: #fff8c5;
+  border: 1px solid #d4a72c;
+  color: #6b5900;
+}
+
+.current-user {
+  margin-right: 12px;
+  color: #57606a;
+}
+
+.own-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+}
+
+.hint {
+  font-weight: 400;
+  color: #57606a;
+  font-size: 12px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.login-wrap {
+  max-width: 360px;
+  margin: 80px auto;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.success {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: #dafbe1;
+  border: 1px solid #1a7f37;
+  color: #1a7f37;
+}
+
+.import-errors {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+}
+
+.status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-success {
+  background: #dafbe1;
+  color: #1a7f37;
+}
+
+.status-failed {
+  background: #ffebe9;
+  color: var(--danger);
+}
+
+td.wrap {
+  white-space: normal;
+  min-width: 220px;
+}
+
+td.note {
+  white-space: normal;
+  min-width: 110px;
+  max-width: 220px;
+}
+
+td.rollback {
+  white-space: normal;
+  min-width: 170px;
+}
+
+.rollback-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+details summary {
+  cursor: pointer;
+}
+
+.modal-wide {
+  max-width: 1000px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.diff {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diff-field {
+  color: #57606a;
+}
+
+.diff-before {
+  color: var(--danger);
+}
+
+.diff-after {
+  color: #1a7f37;
+  font-weight: 500;
+}
+
+.action {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #eaeef2;
+}
+
+.action-created {
+  background: #dafbe1;
+  color: #1a7f37;
+}
+
+.action-deleted {
+  background: #ffebe9;
+  color: var(--danger);
+}
+
+.action-rolled_back {
+  background: #fff8c5;
+  color: #6b5900;
+}
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+  margin-bottom: 12px;
+  text-align: center;
+  background: #fff;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dropzone.dragging {
+  border-color: var(--accent);
+  background: #ddf4ff;
+}
+
+.file-button {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: #f3f4f6;
+}

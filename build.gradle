@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'war'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'jakarta.platform:jakarta.jakartaee-api:10.0.0'
+
+    // EclipseLink живёт модулем WildFly, в WAR попадать не должен
+    compileOnly 'org.eclipse.persistence:org.eclipse.persistence.jpa:4.0.2'
+
+    // Jackson уже на classpath через RESTEasy/jjwt-jackson в рантайме; нужен только для компиляции маппера
+    compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+
+    implementation 'org.mindrot:jbcrypt:0.4'
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'jakarta.platform:jakarta.jakartaee-api:10.0.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+def frontendDir = "${projectDir}/src/main/frontend"
+
+tasks.register('npmInstallFrontend', Exec) {
+    workingDir frontendDir
+    commandLine 'npm', 'install'
+    onlyIf { !file("${frontendDir}/node_modules").exists() }
+}
+
+tasks.register('npmBuildFrontend', Exec) {
+    dependsOn 'npmInstallFrontend'
+    workingDir frontendDir
+    commandLine 'npm', 'run', 'build'
+}
+
+tasks.register('copyFrontend', Copy) {
+    dependsOn 'npmBuildFrontend'
+    from("${frontendDir}/dist")
+    into("${projectDir}/src/main/webapp")
+}
+
+war {
+    dependsOn 'copyFrontend'
+    archiveFileName = 'is1.war'
+}

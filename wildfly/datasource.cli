@@ -1,0 +1,37 @@
+# Регистрация драйверов PostgreSQL и переопределение штатного ExampleDS
+# так, чтобы он указывал на PostgreSQL вместо встроенной H2.
+# JNDI-имя остаётся стандартным: java:jboss/datasources/ExampleDS.
+#
+# ПЕРЕД ЗАПУСКОМ: замените ВАШ_ЛОГИН и ВАШ_ПАРОЛЬ ниже на свои учётные
+# данные кафедрального сервера (те же, что для ssh на helios).
+# Значения хардкодятся в standalone.xml, переменные окружения не используются.
+
+if (outcome != success) of /subsystem=datasources/jdbc-driver=postgresql:read-resource
+    /subsystem=datasources/jdbc-driver=postgresql:add( \
+        driver-name=postgresql, \
+        driver-module-name=org.postgresql, \
+        driver-class-name=org.postgresql.Driver, \
+        driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)
+end-if
+
+if (outcome != success) of /subsystem=datasources/jdbc-driver=postgres:read-resource
+    /subsystem=datasources/jdbc-driver=postgres:add( \
+        driver-name=postgres, \
+        driver-module-name=org.postgresql, \
+        driver-class-name=org.postgresql.Driver)
+end-if
+
+# Штатный ExampleDS ставится вместе с WildFly и смотрит на встроенную H2 —
+# убираем его и создаём заново с тем же JNDI-именем, но на PostgreSQL.
+if (outcome == success) of /subsystem=datasources/data-source=ExampleDS:read-resource
+    /subsystem=datasources/data-source=ExampleDS:remove
+end-if
+
+/subsystem=datasources/data-source=ExampleDS:add( \
+    jndi-name="java:jboss/datasources/ExampleDS", \
+    driver-name=postgresql, \
+    connection-url="jdbc:postgresql://pg:5432/studs", \
+    user-name="ВАШ_ЛОГИН", \
+    password="ВАШ_ПАРОЛЬ")
+
+/subsystem=datasources/data-source=ExampleDS:enable

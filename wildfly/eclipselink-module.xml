@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Кладётся в $WILDFLY_HOME/modules/system/layers/base/org/eclipse/persistence/main/module.xml
+  рядом с eclipselink.jar. Подключение описано в SETUP.md.
+-->
+<module xmlns="urn:jboss:module:1.9" name="org.eclipse.persistence">
+    <resources>
+        <resource-root path="eclipselink.jar">
+            <filter>
+                <exclude path="javax/**"/>
+            </filter>
+        </resource-root>
+        <!-- Официальная адаптация EclipseLink под JTA/сервер-платформу WildFly,
+             идёт в комплекте с дистрибутивом рядом с этим модулем. -->
+        <resource-root path="jipijapa-eclipselink-31.0.1.Final.jar"/>
+    </resources>
+
+    <dependencies>
+        <module name="asm.asm"/>
+        <module name="jakarta.annotation.api"/>
+        <module name="jakarta.enterprise.api"/>
+        <module name="jakarta.persistence.api"/>
+        <module name="jakarta.transaction.api"/>
+        <module name="jakarta.validation.api"/>
+        <module name="jakarta.xml.bind.api"/>
+        <module name="javax.api"/>
+        <module name="org.jboss.as.jpa.spi"/>
+        <module name="org.jboss.logging"/>
+        <module name="org.jboss.vfs"/>
+    </dependencies>
+</module>

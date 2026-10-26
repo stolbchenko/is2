@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: is1-postgres
+    environment:
+      POSTGRES_DB: studs
+      POSTGRES_USER: is1
+      POSTGRES_PASSWORD: is1pass
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - is1-pgdata:/var/lib/postgresql/data
+
+volumes:
+  is1-pgdata:

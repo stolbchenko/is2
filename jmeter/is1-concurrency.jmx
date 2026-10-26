@@ -1,0 +1,2237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+<hashTree>
+<TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="ИС Person: одновременная работа нескольких пользователей">
+  <stringProp name="TestPlan.comments">Запуск: jmeter -n -t is1-concurrency.jmx -Jthreads=10 -Juser.classpath=путь/к/postgresql.jar -l results.jtl. Группы выполняются по очереди, внутри группы потоки стартуют одновременно (Synchronizing Timer). Драйвер PostgreSQL нужен, чтобы назначить двум пользователям роль ADMIN (её можно выдать только в БД); параметры БД: -JdbUrl, -JdbUser, -JdbPassword.</stringProp>
+  <boolProp name="TestPlan.functional_mode">false</boolProp>
+  <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
+  <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+  <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments">
+    <collectionProp name="Arguments.arguments">
+<elementProp name="HOST" elementType="Argument">
+  <stringProp name="Argument.name">HOST</stringProp>
+  <stringProp name="Argument.value">${__P(host,localhost)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="PORT" elementType="Argument">
+  <stringProp name="Argument.name">PORT</stringProp>
+  <stringProp name="Argument.value">${__P(port,8080)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="THREADS" elementType="Argument">
+  <stringProp name="Argument.name">THREADS</stringProp>
+  <stringProp name="Argument.value">${__P(threads,10)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="DB_URL" elementType="Argument">
+  <stringProp name="Argument.name">DB_URL</stringProp>
+  <stringProp name="Argument.value">${__P(dbUrl,jdbc:postgresql://localhost:55432/studs)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="DB_USER" elementType="Argument">
+  <stringProp name="Argument.name">DB_USER</stringProp>
+  <stringProp name="Argument.value">${__P(dbUser,is1)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="DB_PASSWORD" elementType="Argument">
+  <stringProp name="Argument.name">DB_PASSWORD</stringProp>
+  <stringProp name="Argument.value">${__P(dbPassword,is1pass)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+<elementProp name="LOOPS" elementType="Argument">
+  <stringProp name="Argument.name">LOOPS</stringProp>
+  <stringProp name="Argument.value">${__P(loops,3)}</stringProp>
+  <stringProp name="Argument.metadata">=</stringProp>
+</elementProp>
+    </collectionProp>
+  </elementProp>
+</TestPlan>
+<hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Журналировать ответы 5xx">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">if (prev.getResponseCode().startsWith('5')) {
+    log.warn('HTTP ' + prev.getResponseCode() + ' в «' + prev.getSampleLabel() + '»: '
+            + prev.getResponseDataAsString().take(500))
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="0. Подготовка: владелец, два администратора и общие объекты">
+  <stringProp name="TestPlan.comments">Регистрирует владельца и двух пользователей, назначает им роль ADMIN через JDBC (через API роль не выдаётся) и создаёт объекты владельца, которые затем одновременно изменяют и удаляют администраторы в группах 5–7.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">1</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</SetupThreadGroup>
+<hashTree>
+<JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Идентификатор прогона и счётчики">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Идентификатор прогона: все имена и координаты в сценарии уникальны для прогона,
+// поэтому сценарий можно запускать повторно на той же БД.
+long run = System.currentTimeMillis()
+props.put('run', String.valueOf(run))
+props.put('ry', String.valueOf(-(run % 1000000000L)))
+['uniq201', 'coord201', 'import200', 'del204', 'delUpd200', 'upd200', 'refDel204', 'ref201'].each {
+    props.put(it, new java.util.concurrent.atomic.AtomicInteger())
+}
+props.put('putHeights', java.util.Collections.synchronizedSet(new HashSet&lt;String&gt;()))
+SampleResult.setResponseData('run=' + run + ', ry=' + props.get('ry'), 'UTF-8')</stringProp>
+</JSR223Sampler>
+<hashTree>
+
+</hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен владельца">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${token}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация владельца">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;owner${__P(run)}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="token из ответа">
+  <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+  <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+  <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+  <stringProp name="JSONPostProcessor.defaultValues">NO_TOKEN</stringProp>
+</JSONPostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="ownerToken → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">props.put('ownerToken', vars.get('token'))</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация администратора 1">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;adm1${__P(run)}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="adminToken1 → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">1</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">props.put('adminToken' + Parameters, new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString()).token)</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация администратора 2">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;adm2${__P(run)}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="adminToken2 → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">2</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">props.put('adminToken' + Parameters, new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString()).token)</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<JDBCDataSource guiclass="TestBeanGUI" testclass="JDBCDataSource" testname="JDBC: БД приложения">
+  <boolProp name="autocommit">true</boolProp>
+  <stringProp name="checkQuery"></stringProp>
+  <stringProp name="connectionAge">5000</stringProp>
+  <stringProp name="connectionProperties"></stringProp>
+  <stringProp name="dataSource">is1db</stringProp>
+  <stringProp name="dbUrl">${DB_URL}</stringProp>
+  <stringProp name="driver">org.postgresql.Driver</stringProp>
+  <stringProp name="initQuery"></stringProp>
+  <boolProp name="keepAlive">true</boolProp>
+  <stringProp name="password">${DB_PASSWORD}</stringProp>
+  <stringProp name="poolMax">1</stringProp>
+  <boolProp name="preinit">false</boolProp>
+  <stringProp name="timeout">10000</stringProp>
+  <stringProp name="transactionIsolation">DEFAULT</stringProp>
+  <stringProp name="trimInterval">60000</stringProp>
+  <stringProp name="username">${DB_USER}</stringProp>
+</JDBCDataSource>
+<hashTree>
+
+</hashTree>
+<JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Назначение роли ADMIN двум пользователям">
+  <stringProp name="dataSource">is1db</stringProp>
+  <stringProp name="query">UPDATE app_user SET role = 'ADMIN' WHERE username IN ('adm1${__P(run)}', 'adm2${__P(run)}')</stringProp>
+  <stringProp name="queryArguments"></stringProp>
+  <stringProp name="queryArgumentsTypes"></stringProp>
+  <stringProp name="queryTimeout"></stringProp>
+  <stringProp name="queryType">Update Statement</stringProp>
+  <stringProp name="resultSetHandler">Store as String</stringProp>
+  <stringProp name="resultSetMaxRows"></stringProp>
+  <stringProp name="resultVariable"></stringProp>
+  <stringProp name="variableNames"></stringProp>
+</JDBCSampler>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Обновлены ровно две учётные записи">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">if (prev.getResponseDataAsString().trim() != '2 updates') {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидалось 2 updates, получено: ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Администратор 1 видит историю всех пользователей">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/imports</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен администратора 1">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__P(adminToken1)}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Роль ADMIN действует">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+if (prev.getResponseCode() != '200' || json.admin != true) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Пользователь не стал администратором: ' + prev.getResponseCode() + ' '
+            + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Администратор 2 видит историю всех пользователей">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/imports</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен администратора 2">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__P(adminToken2)}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Роль ADMIN действует">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+if (prev.getResponseCode() != '200' || json.admin != true) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Пользователь не стал администратором: ' + prev.getResponseCode() + ' '
+            + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Объект для одновременного изменения">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;upd${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;-1&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;-1&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="id → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">upd</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр — префикс: сохраняем id объекта, его версию, id координат и локации в свойства для других групп
+def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+props.put(Parameters + 'Id', json.id as String)
+props.put(Parameters + 'Version', json.version as String)
+props.put(Parameters + 'Coords', json.coordinates.id as String)
+props.put(Parameters + 'Loc', json.location.id as String)</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Объект для изменения + удаления">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;del${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;-2&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;-2&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="id → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">del</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр — префикс: сохраняем id объекта, его версию, id координат и локации в свойства для других групп
+def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+props.put(Parameters + 'Id', json.id as String)
+props.put(Parameters + 'Version', json.version as String)
+props.put(Parameters + 'Coords', json.coordinates.id as String)
+props.put(Parameters + 'Loc', json.location.id as String)</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Объект, к координатам которого привязываются при удалении">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;ref${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;-3&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;-3&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="id → свойства">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">ref</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр — префикс: сохраняем id объекта, его версию, id координат и локации в свойства для других групп
+def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+props.put(Parameters + 'Id', json.id as String)
+props.put(Parameters + 'Version', json.version as String)
+props.put(Parameters + 'Coords', json.coordinates.id as String)
+props.put(Parameters + 'Loc', json.location.id as String)</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="1. Обычная работа: создание, изменение, удаление и импорт разных объектов">
+  <stringProp name="TestPlan.comments">Каждый поток — свой пользователь со своими объектами. Проверяет, что под одновременной нагрузкой штатные операции не падают (в т. ч. что повторы при конфликтах сериализации прозрачны для клиента).</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">${LOOPS}</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен потока">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${token}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Один раз на поток"/>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация пользователя потока">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;u${__P(run)}_crud_${__threadNum}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="token из ответа">
+  <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+  <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+  <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+  <stringProp name="JSONPostProcessor.defaultValues">NO_TOKEN</stringProp>
+</JSONPostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Создание">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;crud${__P(run)}_${__threadNum}_${__groovy(vars.getIteration())}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;${__groovy(-(100000 + (ctx.getThreadNum() + 1) * 100 + vars.getIteration()))}&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;${__groovy(-(100000 + (ctx.getThreadNum() + 1) * 100 + vars.getIteration()))}&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="id → переменные">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Сохраняем id объекта, его версию, id координат и локации в переменные потока
+if (prev.getResponseCode() == '201') {
+    def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+    vars.put('pid', json.id as String)
+    vars.put('pver', json.version as String)
+    vars.put('cid', json.coordinates.id as String)
+    vars.put('lid', json.location.id as String)
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Изменение">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${pid}</stringProp>
+  <stringProp name="HTTPSampler.method">PUT</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;crud${__P(run)}_${__threadNum}_${__groovy(vars.getIteration())}_изм&quot;,&quot;hairColor&quot;:&quot;BLUE&quot;,&quot;height&quot;:&quot;175,5&quot;,&quot;coordinatesId&quot;:${cid},&quot;locationId&quot;:${lid},&quot;version&quot;:${pver}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Новая версия → переменные">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// После изменения версия выросла: удаление пойдёт уже с новой
+if (prev.getResponseCode() == '200') {
+    vars.put('pver', new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString()).version as String)
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Удаление">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${pid}?version=${pver}</stringProp>
+  <stringProp name="HTTPSampler.method">DELETE</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {204}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">204</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Импорт файла из двух записей">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/import</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.DO_MULTIPART_POST">true</boolProp>
+  <elementProp name="HTTPsampler.Files" elementType="HTTPFileArgs">
+    <collectionProp name="HTTPFileArgs.files">
+      <elementProp name="${importFile}" elementType="HTTPFileArg">
+        <stringProp name="File.path">${importFile}</stringProp>
+        <stringProp name="File.paramname">file</stringProp>
+        <stringProp name="File.mimetype">application/json</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Файл импорта">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">crud</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Пишет файл импорта для этого потока. Параметр: &quot;crud&quot; — две уникальные записи,
+// &quot;overlap&quot; — запись с общим для всех потоков именем + запись с уникальным именем.
+import groovy.json.JsonOutput
+
+def run = props.get('run')
+def ry = props.get('ry')
+int t = ctx.getThreadNum() + 1
+int iter = vars.getIteration()
+def record = { String name, long x -&gt;
+    [name: name, hairColor: 'YELLOW', height: '165,5',
+     coordinates: [x: x.toString(), y: ry], location: [x: x.toString(), y: '2', z: ry]]
+}
+def records
+if (Parameters == 'crud') {
+    long base = -(200000L + t * 100 + iter * 2)
+    records = [record(&quot;impok${run}_${t}_${iter}_a&quot;, base), record(&quot;impok${run}_${t}_${iter}_b&quot;, base - 1)]
+} else {
+    long base = -(500000L + t * 2)
+    records = [record(&quot;impc${run}&quot;, base), record(&quot;impu${run}_${t}&quot;, base - 1)]
+}
+def file = new File(System.getProperty('java.io.tmpdir'), &quot;is1-import-${run}-${Parameters}-${t}-${iter}.json&quot;)
+file.setText(JsonOutput.toJson(records), 'UTF-8')
+file.deleteOnExit()
+vars.put('importFile', file.absolutePath)</stringProp>
+</JSR223PreProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="2. Уникальность имени: все потоки одновременно создают объект с одним именем">
+  <stringProp name="TestPlan.comments">Разные пользователи, одинаковое имя, разные координаты. Ожидается ровно один 201, остальные 409.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен потока">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${token}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Один раз на поток"/>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация пользователя потока">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;u${__P(run)}_name_${__threadNum}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="token из ответа">
+  <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+  <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+  <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+  <stringProp name="JSONPostProcessor.defaultValues">NO_TOKEN</stringProp>
+</JSONPostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Создание объекта с общим именем">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;same${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;${__groovy(-(300000 + ctx.getThreadNum()))}&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;${__groovy(-(300000 + ctx.getThreadNum()))}&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 201 → uniq201">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201 uniq201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201,409}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201,409</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="3. Уникальность координат: все потоки одновременно создают одинаковые новые координаты">
+  <stringProp name="TestPlan.comments">Разные пользователи и имена, одинаковые координаты. Ожидается ровно один 201, остальные 409.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен потока">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${token}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Один раз на поток"/>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация пользователя потока">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;u${__P(run)}_coords_${__threadNum}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="token из ответа">
+  <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+  <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+  <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+  <stringProp name="JSONPostProcessor.defaultValues">NO_TOKEN</stringProp>
+</JSONPostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Создание объекта с общими координатами">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;samec${__P(run)}_${__threadNum}&quot;,&quot;hairColor&quot;:&quot;BLACK&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinates&quot;:{&quot;x&quot;:&quot;-999999&quot;,&quot;y&quot;:&quot;${__P(ry)}&quot;},&quot;location&quot;:{&quot;x&quot;:&quot;${__groovy(-(400000 + ctx.getThreadNum()))}&quot;,&quot;y&quot;:&quot;1&quot;,&quot;z&quot;:&quot;${__P(ry)}&quot;}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 201 → coord201">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201 coord201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201,409}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201,409</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="4. Одновременный импорт файлов с пересекающимся именем">
+  <stringProp name="TestPlan.comments">В каждом файле — запись с общим для всех именем и запись с уникальным. Ожидается ровно один успешный импорт (200), остальные отклонены (400) целиком, без частично созданных объектов.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен потока">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${token}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Один раз на поток"/>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Регистрация пользователя потока">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/auth/register</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;username&quot;:&quot;u${__P(run)}_import_${__threadNum}&quot;,&quot;password&quot;:&quot;secret1&quot;}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="token из ответа">
+  <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+  <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+  <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+  <stringProp name="JSONPostProcessor.defaultValues">NO_TOKEN</stringProp>
+</JSONPostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Импорт файла с общим именем">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/import</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.DO_MULTIPART_POST">true</boolProp>
+  <elementProp name="HTTPsampler.Files" elementType="HTTPFileArgs">
+    <collectionProp name="HTTPFileArgs.files">
+      <elementProp name="${importFile}" elementType="HTTPFileArg">
+        <stringProp name="File.path">${importFile}</stringProp>
+        <stringProp name="File.paramname">file</stringProp>
+        <stringProp name="File.mimetype">application/json</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Файл импорта">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">overlap</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Пишет файл импорта для этого потока. Параметр: &quot;crud&quot; — две уникальные записи,
+// &quot;overlap&quot; — запись с общим для всех потоков именем + запись с уникальным именем.
+import groovy.json.JsonOutput
+
+def run = props.get('run')
+def ry = props.get('ry')
+int t = ctx.getThreadNum() + 1
+int iter = vars.getIteration()
+def record = { String name, long x -&gt;
+    [name: name, hairColor: 'YELLOW', height: '165,5',
+     coordinates: [x: x.toString(), y: ry], location: [x: x.toString(), y: '2', z: ry]]
+}
+def records
+if (Parameters == 'crud') {
+    long base = -(200000L + t * 100 + iter * 2)
+    records = [record(&quot;impok${run}_${t}_${iter}_a&quot;, base), record(&quot;impok${run}_${t}_${iter}_b&quot;, base - 1)]
+} else {
+    long base = -(500000L + t * 2)
+    records = [record(&quot;impc${run}&quot;, base), record(&quot;impu${run}_${t}&quot;, base - 1)]
+}
+def file = new File(System.getProperty('java.io.tmpdir'), &quot;is1-import-${run}-${Parameters}-${t}-${iter}.json&quot;)
+file.setText(JsonOutput.toJson(records), 'UTF-8')
+file.deleteOnExit()
+vars.put('importFile', file.absolutePath)</stringProp>
+</JSR223PreProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 200 → import200">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200 import200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200,400}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200,400</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="5. Два администратора одновременно изменяют один объект">
+  <stringProp name="TestPlan.comments">Два администратора (чётные и нечётные потоки) одновременно меняют чужой объект; все видели одну и ту же версию, у каждого потока свой рост. Оптимистическая блокировка: ровно одно изменение успешно (200), остальные отклонены как сделанные по устаревшей версии (409) — правка не теряется молча. Итог — значение успешного изменения.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: чётные потоки — администратор 1, нечётные — администратор 2">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__groovy(props.get(ctx.getThreadNum() % 2 == 0 ? 'adminToken1' : 'adminToken2'))}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Изменение общего объекта">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(updId)}</stringProp>
+  <stringProp name="HTTPSampler.method">PUT</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;upd${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLUE&quot;,&quot;height&quot;:&quot;${__threadNum}&quot;,&quot;coordinatesId&quot;:${__P(updCoords)},&quot;locationId&quot;:${__P(updLoc)},&quot;version&quot;:${__P(updVersion)}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Запомнить рост успешного изменения">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">if (prev.getResponseCode() == '200') props.get('putHeights').add(String.valueOf(ctx.getThreadNum() + 1))</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 200 → upd200">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200 upd200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200,409}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200,409</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="6. Администраторы одновременно изменяют и удаляют один объект">
+  <stringProp name="TestPlan.comments">Чётные потоки (администратор 1) удаляют объект, нечётные (администратор 2) — изменяют; все по одной и той же версии. Успешна ровно одна операция: либо удаление (204, остальные получают 404), либо изменение (200, остальные получают 409, потому что версия уже другая).</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: чётные потоки — администратор 1, нечётные — администратор 2">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__groovy(props.get(ctx.getThreadNum() % 2 == 0 ? 'adminToken1' : 'adminToken2'))}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<IfController guiclass="IfControllerPanel" testclass="IfController" testname="Чётный поток: удаление">
+  <stringProp name="IfController.condition">${__groovy(ctx.getThreadNum() % 2 == 0)}</stringProp>
+  <boolProp name="IfController.evaluateAll">false</boolProp>
+  <boolProp name="IfController.useExpression">true</boolProp>
+</IfController>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Удаление общего объекта">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(delId)}?version=${__P(delVersion)}</stringProp>
+  <stringProp name="HTTPSampler.method">DELETE</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 204 → del204">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">204 del204</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {204,404,409}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">204,404,409</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<IfController guiclass="IfControllerPanel" testclass="IfController" testname="Нечётный поток: изменение">
+  <stringProp name="IfController.condition">${__groovy(ctx.getThreadNum() % 2 == 1)}</stringProp>
+  <boolProp name="IfController.evaluateAll">false</boolProp>
+  <boolProp name="IfController.useExpression">true</boolProp>
+</IfController>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Изменение удаляемого объекта">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(delId)}</stringProp>
+  <stringProp name="HTTPSampler.method">PUT</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;del${__P(run)}&quot;,&quot;hairColor&quot;:&quot;BLUE&quot;,&quot;height&quot;:&quot;180&quot;,&quot;coordinatesId&quot;:${__P(delCoords)},&quot;locationId&quot;:${__P(delLoc)},&quot;version&quot;:${__P(delVersion)}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 200 → delUpd200">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200 delUpd200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200,404,409}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200,404,409</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+</hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="7. Удаление объекта при одновременной привязке других объектов к его координатам">
+  <stringProp name="TestPlan.comments">Поток 1 удаляет объект (его координаты и локация больше никем не используются и удаляются вместе с ним), остальные одновременно создают объекты с привязкой к этим же координатам и локации. Каждая привязка либо успешна (и тогда координаты не удаляются), либо получает 404.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</ThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен владельца общих объектов">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__P(ownerToken)}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Одновременный старт всех потоков">
+  <intProp name="groupSize">0</intProp>
+  <longProp name="timeoutInMs">30000</longProp>
+</SyncTimer>
+<hashTree>
+
+</hashTree>
+<IfController guiclass="IfControllerPanel" testclass="IfController" testname="Поток 1: удаление">
+  <stringProp name="IfController.condition">${__groovy(ctx.getThreadNum() == 0)}</stringProp>
+  <boolProp name="IfController.evaluateAll">false</boolProp>
+  <boolProp name="IfController.useExpression">true</boolProp>
+</IfController>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Удаление объекта-владельца координат">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(refId)}?version=${__P(refVersion)}</stringProp>
+  <stringProp name="HTTPSampler.method">DELETE</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 204 → refDel204">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">204 refDel204</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {204}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">204</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<IfController guiclass="IfControllerPanel" testclass="IfController" testname="Остальные: привязка">
+  <stringProp name="IfController.condition">${__groovy(ctx.getThreadNum() &gt; 0)}</stringProp>
+  <boolProp name="IfController.evaluateAll">false</boolProp>
+  <boolProp name="IfController.useExpression">true</boolProp>
+</IfController>
+<hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Создание с привязкой к тем же координатам">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons</stringProp>
+  <stringProp name="HTTPSampler.method">POST</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">
+      <elementProp name="" elementType="HTTPArgument">
+        <boolProp name="HTTPArgument.always_encode">false</boolProp>
+        <stringProp name="Argument.value">{&quot;name&quot;:&quot;refc${__P(run)}_${__threadNum}&quot;,&quot;hairColor&quot;:&quot;BLUE&quot;,&quot;height&quot;:&quot;170&quot;,&quot;coordinatesId&quot;:${__P(refCoords)},&quot;locationId&quot;:${__P(refLoc)}}</stringProp>
+        <stringProp name="Argument.metadata">=</stringProp>
+      </elementProp>
+    </collectionProp>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type: JSON">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Content-Type</stringProp>
+  <stringProp name="Header.value">application/json</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Счётчик ответов 201 → ref201">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201 ref201</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Параметр &quot;201 counterName&quot;: считаем ответы с этим кодом в общий счётчик (для итоговой проверки)
+def (code, counter) = Parameters.split(' ')
+if (prev.getResponseCode() == code) {
+    props.get(counter).incrementAndGet()
+}</stringProp>
+</JSR223PostProcessor>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {201,404}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">201,404</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+</hashTree>
+<PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="8. Проверка итогового состояния">
+  <stringProp name="TestPlan.comments">После всех одновременных операций проверяет, что инварианты предметной области соблюдены.</stringProp>
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp>
+    <boolProp name="LoopController.continue_forever">false</boolProp>
+  </elementProp>
+  <stringProp name="ThreadGroup.num_threads">1</stringProp>
+  <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+  <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+  <boolProp name="ThreadGroup.scheduler">false</boolProp>
+</PostThreadGroup>
+<hashTree>
+<HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: токен владельца общих объектов">
+  <collectionProp name="HeaderManager.headers">
+<elementProp name="" elementType="Header">
+  <stringProp name="Header.name">Authorization</stringProp>
+  <stringProp name="Header.value">Bearer ${__P(ownerToken)}</stringProp>
+</elementProp>
+  </collectionProp>
+</HeaderManager>
+<hashTree>
+
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Сколько объектов с общим именем (группа 2)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons?size=100&amp;name=same${__P(run)}</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Ровно один объект и один ответ 201">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+int created = props.get('uniq201').get()
+if (json.total != 1 || created != 1) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Нарушена уникальность имени: в БД объектов с именем — ${json.total}, &quot;
+            + &quot;успешных ответов 201 — ${created}, ожидалось ровно по 1&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Сколько одинаковых координат (группа 3)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/coordinates</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Ровно одни координаты и один ответ 201">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def list = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+def same = list.findAll { it.x == '-999999' &amp;&amp; it.y == props.get('ry') }
+int created = props.get('coord201').get()
+if (same.size() != 1 || created != 1) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Нарушена уникальность координат: координат (-999999; ${props.get('ry')}) &quot;
+            + &quot;в БД — ${same.size()}, успешных ответов 201 — ${created}, ожидалось ровно по 1&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Сколько объектов с общим именем из импорта (группа 4)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons?size=100&amp;name=impc${__P(run)}</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Ровно один объект и один успешный импорт">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+int ok = props.get('import200').get()
+if (json.total != 1 || ok != 1) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Импорт: объектов с общим именем — ${json.total}, &quot;
+            + &quot;успешных импортов — ${ok}, ожидалось ровно по 1&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Уникальные записи импорта (группа 4)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons?size=100&amp;name=impu${__P(run)}_</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Сохранились только записи успешного импорта">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Из уникальных записей должна остаться только запись успешного импорта:
+// у отклонённых файлов не должно сохраниться ничего (атомарность импорта)
+def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+if (json.total != props.get('import200').get()) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Импорт неатомарен: уникальных записей в БД — ${json.total}, &quot;
+            + &quot;успешных импортов — ${props.get('import200').get()}&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Итог одновременного изменения (группа 5)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(updId)}</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Код ответа ∈ {200}">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters">200</stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Ожидаемые коды ответа передаются параметром: &quot;201,409&quot;. Всё остальное (в т. ч. 5xx) — ошибка.
+def expected = Parameters.split(',') as List
+if (expected.contains(prev.getResponseCode())) {
+    prev.setSuccessful(true)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Ожидался код ' + Parameters + ', получен ' + prev.getResponseCode()
+            + ': ' + prev.getResponseDataAsString().take(300))
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Успешно ровно одно изменение, его значение сохранилось">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Все администраторы меняли одну и ту же версию: успешно ровно одно изменение, его значение и сохранилось
+def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+def heights = props.get('putHeights')
+int ok = props.get('upd200').get()
+int expectedVersion = (props.get('updVersion') as int) + 1
+if (ok != 1 || heights.size() != 1 || !heights.contains(json.height) || json.version != expectedVersion) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Одновременное изменение: успешных ответов 200 — ${ok} (ожидался 1), &quot;
+            + &quot;итоговый рост ${json.height}, успешные изменения ${heights}, версия ${json.version} (ожидалась ${expectedVersion})&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Объект изменения + удаления (группа 6)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/${__P(delId)}</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Успешна ровно одна операция, итог ей соответствует">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Все операции шли по одной версии: успешна ровно одна — удаление (объекта нет) или изменение (объект изменён)
+int deleted = props.get('del204').get()
+int updated = props.get('delUpd200').get()
+String code = prev.getResponseCode()
+boolean consistent = deleted + updated == 1 &amp;&amp; (deleted == 1 ? code == '404'
+        : code == '200' &amp;&amp; new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString()).height == '180')
+if (!consistent) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Изменение + удаление одного объекта: удалений 204 — ${deleted}, изменений 200 — ${updated} &quot;
+            + &quot;(ожидалась ровно одна успешная операция), объект после сценария отвечает ${code}&quot;)
+} else {
+    prev.setSuccessful(true)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Объекты, привязанные к координатам удалённого (группа 7)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons?size=100&amp;name=refc${__P(run)}_</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Созданные привязки сохранились">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">def json = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+int created = props.get('ref201').get()
+if (json.total != created || props.get('refDel204').get() != 1) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Привязка к удаляемым координатам: в БД ${json.total} объектов, &quot;
+            + &quot;ответов 201 — ${created}; удалений 204 — ${props.get('refDel204').get()} (ожидалось 1)&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+<HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Координаты удалённого объекта (группа 7)">
+  <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+  <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+  <stringProp name="HTTPSampler.protocol">http</stringProp>
+  <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+  <stringProp name="HTTPSampler.path">/is1/api/persons/coordinates</stringProp>
+  <stringProp name="HTTPSampler.method">GET</stringProp>
+  <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+  <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+    <collectionProp name="Arguments.arguments"/>
+  </elementProp>
+</HTTPSamplerProxy>
+<hashTree>
+<JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Координаты есть тогда и только тогда, когда используются">
+  <stringProp name="scriptLanguage">groovy</stringProp>
+  <stringProp name="parameters"></stringProp>
+  <stringProp name="filename"></stringProp>
+  <stringProp name="cacheKey">true</stringProp>
+  <stringProp name="script">// Координаты удалённого объекта должны остаться, если кто-то успел к ним привязаться, и исчезнуть, если нет
+def list = new groovy.json.JsonSlurper().parseText(prev.getResponseDataAsString())
+boolean exists = list.any { (it.id as String) == props.get('refCoords') }
+boolean referenced = props.get('ref201').get() &gt; 0
+if (exists != referenced) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(&quot;Координаты #${props.get('refCoords')}: существуют=${exists}, &quot;
+            + &quot;но привязанных объектов создано ${props.get('ref201').get()}&quot;)
+}</stringProp>
+</JSR223Assertion>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+<ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Сводка (Summary Report)">
+  <boolProp name="ResultCollector.error_logging">false</boolProp>
+  <stringProp name="filename"></stringProp>
+</ResultCollector>
+<hashTree>
+
+</hashTree>
+<ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="Дерево результатов (View Results Tree)">
+  <boolProp name="ResultCollector.error_logging">false</boolProp>
+  <stringProp name="filename"></stringProp>
+</ResultCollector>
+<hashTree>
+
+</hashTree>
+</hashTree>
+</hashTree>
+</jmeterTestPlan>
