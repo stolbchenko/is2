@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Проверка",
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "21",
+      "y": "22",
+      "z": "23"
+    },
+    "height": "175",
+    "nationality": "RUSSIA"
+  }
+]

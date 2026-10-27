@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Граница 1",
+    "coordinates": {
+      "x": "91",
+      "y": "599"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "41",
+      "y": "42",
+      "z": "43"
+    },
+    "height": "0.1",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Граница 2",
+    "coordinates": {
+      "x": "-50",
+      "y": "-100"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "-44",
+      "y": "-45",
+      "z": "-46"
+    },
+    "height": "300",
+    "nationality": "RUSSIA"
+  }
+]

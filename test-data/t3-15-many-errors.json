@@ -1,0 +1,62 @@
+[
+  {
+    "name": "",
+    "coordinates": {
+      "x": "50",
+      "y": "500"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "31",
+      "y": "32",
+      "z": "33"
+    },
+    "height": "0",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Много ошибок 2",
+    "coordinates": {
+      "x": "100",
+      "y": "501"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "34",
+      "y": "35",
+      "z": "36"
+    },
+    "height": "170",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Много ошибок 3",
+    "coordinates": {
+      "x": "40",
+      "y": "400"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": null,
+    "height": "175",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Много ошибок 4",
+    "coordinates": {
+      "x": "51",
+      "y": "502"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "37",
+      "y": "38",
+      "z": "39"
+    },
+    "height": "171",
+    "nationality": "RUSSIA"
+  }
+]

@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Дубль Всё",
+    "coordinates": {
+      "x": "65",
+      "y": "130"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "66",
+      "y": "67",
+      "z": "68"
+    },
+    "height": "170",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Дубль Всё",
+    "coordinates": {
+      "x": "65",
+      "y": "130"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "66",
+      "y": "67",
+      "z": "68"
+    },
+    "height": "170",
+    "nationality": "RUSSIA"
+  }
+]

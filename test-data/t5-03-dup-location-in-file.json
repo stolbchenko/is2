@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Дубль Лок 1",
+    "coordinates": {
+      "x": "63",
+      "y": "120"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "63",
+      "y": "64",
+      "z": "65"
+    },
+    "height": "170",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Дубль Лок 2",
+    "coordinates": {
+      "x": "64",
+      "y": "121"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "63",
+      "y": "64",
+      "z": "65"
+    },
+    "height": "171",
+    "nationality": "RUSSIA"
+  }
+]

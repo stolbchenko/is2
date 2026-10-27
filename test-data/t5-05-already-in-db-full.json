@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Тест Один",
+    "coordinates": {
+      "x": "10.5",
+      "y": "100"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "1.5",
+      "y": "2",
+      "z": "3.5"
+    },
+    "height": "180",
+    "nationality": "RUSSIA"
+  }
+]

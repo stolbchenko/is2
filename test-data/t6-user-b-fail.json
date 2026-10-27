@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Юзер Б 3",
+    "coordinates": {
+      "x": "74",
+      "y": "204"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "93",
+      "y": "94",
+      "z": "95"
+    },
+    "height": "174",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "Юзер Б 4",
+    "coordinates": {
+      "x": "75",
+      "y": "205"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "96",
+      "y": "97",
+      "z": "98"
+    },
+    "height": "-1",
+    "nationality": "RUSSIA"
+  }
+]

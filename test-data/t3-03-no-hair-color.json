@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Проверка",
+    "coordinates": {
+      "x": "40",
+      "y": "400"
+    },
+    "eyeColor": "BLUE",
+    "location": {
+      "x": "21",
+      "y": "22",
+      "z": "23"
+    },
+    "height": "175",
+    "nationality": "RUSSIA"
+  }
+]

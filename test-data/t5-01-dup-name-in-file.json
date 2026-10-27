@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Дубль Имя",
+    "coordinates": {
+      "x": "60",
+      "y": "100"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "51",
+      "y": "52",
+      "z": "53"
+    },
+    "height": "170",
+    "nationality": "RUSSIA"
+  },
+  {
+    "name": "  дубль имя  ",
+    "coordinates": {
+      "x": "61",
+      "y": "101"
+    },
+    "eyeColor": "BLUE",
+    "hairColor": "BLACK",
+    "location": {
+      "x": "54",
+      "y": "55",
+      "z": "56"
+    },
+    "height": "171",
+    "nationality": "RUSSIA"
+  }
+]
