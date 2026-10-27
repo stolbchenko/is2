@@ -1,4 +1,8 @@
-build/
+# build/ игнорируем, кроме готового WAR для деплоя через git
+build/*
+!build/libs/
+build/libs/*
+!build/libs/is1.war
 .gradle/
 out/
 
